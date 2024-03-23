@@ -1,3 +1,5 @@
+from collections import Counter
+
 from matplotlib import pyplot as plt
 import shutil
 from Dataset import VOCDataset
@@ -134,8 +136,6 @@ def select_only_HD_files(xml_paths):
         if int(width) >= 1280 and int(height) >= 720:
             hd_files.append(xml)
     return hd_files
-
-
 def find_image_paths(xml_paths):
     """
        Retrive from all xml files the associated image filename
@@ -153,8 +153,6 @@ def find_image_paths(xml_paths):
         image_paths.append(root.find('filename').text)
 
     return image_paths
-
-
 def move_selected_files(xml_paths):
     """
           Move all XML files and Images selected to Selected_data folder
@@ -178,9 +176,31 @@ def move_selected_files(xml_paths):
         source_path = os.path.join(source_folder,path)
         shutil.move(source_path, destination_path)
         print(f"Moved '{path}' to '{destination_path}'")
+def get_beehive_name(xml_paths):
+    """
+       Retrive from all xml files the associated beehive name
 
+              Args:
+                  xml_paths (str): Path to the directory containing XML files.
+              Returns:
+                  beehive dict: contains all the beehive name as keys and the occurencies as values
 
+    """
+    beehive_names=[]
+    for xml in xml_paths:
+        tree = ET.parse(xml)
+        root = tree.getroot()
+        filename = root.find('filename').text
+        temp = filename.split(sep="_")
+        if temp[0] == "Chueried" or temp[0] == "OldSchoolHoney":
+            beehive_names.append(temp[0] + "_" + temp[1])
+        else:
+            beehive_names.append(temp[0]+"_"+temp[1]+"_"+temp[2])
 
+        occurrences = Counter(beehive_names)
+        beehives = dict(occurrences)
+
+    return beehives
 def get_xml_files(dir_path):
   """
   Retrieves all XML files from a directory and its subdirectories.
@@ -199,9 +219,11 @@ def get_xml_files(dir_path):
         all_files.append(file_path)
   return all_files
 
+# ---------------------- DOWNLOADED DATASET ----------------------#
+
 # path to dataset files obtained from kaggle
-dir_path = "./ML-Data"
-xml_files = get_xml_files(dir_path)
+# dir_path = "./ML-Data"
+# xml_files = get_xml_files(dir_path)
 
 # number of classes
 # class_labels = parse_labels_from_xmls(xml_files)
@@ -225,6 +247,24 @@ xml_files = get_xml_files(dir_path)
 # print(hd_files)
 # print(len(hd_files))
 # move_selected_files(hd_files)
+
+# ---------------------- SELECTED DATASET ----------------------#
+
+# path to dataset files obtained from selected images
+dir_path = "./Selected_data"
+xml_files = get_xml_files(dir_path)
+
+hd_beehives = get_beehive_name(xml_files)
+print(hd_beehives)
+
+hd_labels = parse_labels_from_xmls(xml_files)
+print(hd_labels)
+
+# All image resolution and HD image resolution
+hd_img_sizes = parse_size_from_xmls(xml_files)
+
+hd_img_dict_sizes = parse_size_dict_from_xmls(xml_files, hd_img_sizes)
+plot_dict_images_sizes(hd_img_dict_sizes, title="All images resolution")
 
 
 # transform = transforms.Compose([
