@@ -1,13 +1,17 @@
 from collections import Counter
-
 from matplotlib import pyplot as plt
 import shutil
+from torch.utils.data import DataLoader
 from Dataset import VOCDataset
 import torch
 from torchvision import transforms
 import xml.etree.ElementTree as ET  # For XML parsing
 import os
 import re
+from PIL import Image
+
+from utils import display_img, display_bbox
+
 
 def parse_labels_from_xmls(xml_paths):
     """
@@ -133,7 +137,7 @@ def select_only_HD_files(xml_paths):
         height = size.find('height').text
         item = width + "x" + height
 
-        if int(width) >= 1280 and int(height) >= 720:
+        if int(width) >= 640 and int(height) >= 480:
             hd_files.append(xml)
     return hd_files
 def find_image_paths(xml_paths):
@@ -168,8 +172,8 @@ def move_selected_files(xml_paths):
     for path in xml_paths:
         file = os.path.basename(path)
         destination_path = os.path.join(destination_folder, file)
-        shutil.move(path, destination_path)
-        print(f"Moved '{file}' to '{destination_path}'")
+        shutil.copyfile(path, destination_path)
+        print(f"copyfile '{file}' to '{destination_path}'")
 
     for path in image_paths:
         destination_path = os.path.join(destination_folder, path)
@@ -219,38 +223,89 @@ def get_xml_files(dir_path):
         all_files.append(file_path)
   return all_files
 
+def check_image_corruption(dir_path):
+    """
+           Retrive a list of all images that are corrupted
+
+                  Args:
+                      dir_path (str): Path to the directory containing Image files.
+                  Returns:
+                      corrupetd_images (list): contains all the images names that are corrupted
+        """
+    img_path_all = [f for f in os.listdir(dir_path) if f.endswith('.jpg') or f.endswith('.png')]
+    corrupetd_images = []
+    for img_path in img_path_all:
+        try:
+            full_path = os.path.join(dir_path, img_path)
+            img = Image.open(full_path)
+            img.verify()
+        except(IOError,SyntaxError) as e:
+            print("Bad image: ", img_path)
+            corrupetd_images.append(img_path)
+    return corrupetd_images
+def remove_corrupted_img(img_path, dir_path):
+    """
+       Remove all images from the desire path
+           Args:
+               img_path (list): List of all images paths
+               dir_path (str): Path to the directory containing Image files.
+    """
+    for img in img_path:
+        full_path = os.path.join(dir_path, img)
+        os.remove(full_path)
 # ---------------------- DOWNLOADED DATASET ----------------------#
 
 # path to dataset files obtained from kaggle
-# dir_path = "./ML-Data"
-# xml_files = get_xml_files(dir_path)
+dir_path = "./ML-Data"
+xml_files = get_xml_files(dir_path)
 
 # number of classes
-# class_labels = parse_labels_from_xmls(xml_files)
-# print(f"Class labels: {class_labels}")
+class_labels = parse_labels_from_xmls(xml_files)
+print(f"Class labels: {class_labels}")
 
 # All image resolution and HD image resolution
-# img_sizes = parse_size_from_xmls(xml_files)
-# hd_img_sizes = parse_size_from_xmls(xml_files, min_size=(1280,720))
-#
-# img_dict_sizes = parse_size_dict_from_xmls(xml_files, img_sizes)
-# hd_img_dict_sizes = parse_size_dict_from_xmls(xml_files, hd_img_sizes)
-#
-# print(f"img size: {img_dict_sizes}")
-# print(f"hd img size: {hd_img_dict_sizes}")
-#
-# plot_dict_images_sizes(img_dict_sizes, title="All images resolution")
-# plot_dict_images_sizes(hd_img_dict_sizes, title="All HD images and higher resolutions")
+img_sizes = parse_size_from_xmls(xml_files)
+hd_img_sizes = parse_size_from_xmls(xml_files, min_size=(640,480))
+
+img_dict_sizes = parse_size_dict_from_xmls(xml_files, img_sizes)
+hd_img_dict_sizes = parse_size_dict_from_xmls(xml_files, hd_img_sizes)
+
+print(f"img size: {img_dict_sizes}")
+print(f"hd img size: {hd_img_dict_sizes}")
+
+plot_dict_images_sizes(img_dict_sizes, title="All images resolution")
+plot_dict_images_sizes(hd_img_dict_sizes, title="All HD images and higher resolutions")
 
 # Selecting only HD data
-# hd_files = select_only_HD_files(xml_files)
-# print(hd_files)
-# print(len(hd_files))
-# move_selected_files(hd_files)
+hd_files = select_only_HD_files(xml_files)
+print("# hd files: ",len(hd_files))
+class_labels = parse_labels_from_xmls(hd_files)
+print(f"Class labels HD: {class_labels}")
 
-# ---------------------- SELECTED DATASET ----------------------#
+move_selected_files(hd_files)
 
-# path to dataset files obtained from selected images
+#---------------------- SELECTED DATASET ----------------------#
+
+# Checking corruptedImages
+dir_path = "./Selected_data"
+corrupted = check_image_corruption(dir_path)
+print(len(corrupted))
+xml_corrupted = [it.replace(".jpg", ".xml") for it in corrupted]
+xml_corrupted = [it.replace(".png", ".xml") for it in xml_corrupted]
+xml_corrupted = [os.path.join(dir_path,it) for it in xml_corrupted]
+
+corrupted_bh=get_beehive_name(xml_corrupted)
+print(corrupted_bh)
+
+# All image resolution and HD image resolution
+hd_corrupted_sizes = parse_size_from_xmls(xml_corrupted)
+
+hd_corrupted_dict_sizes = parse_size_dict_from_xmls(xml_corrupted, hd_corrupted_sizes)
+plot_dict_images_sizes(hd_corrupted_dict_sizes, title="All images resolution")
+
+remove_corrupted_img(corrupted,dir_path)
+
+#path to dataset files obtained from selected images
 dir_path = "./Selected_data"
 xml_files = get_xml_files(dir_path)
 
@@ -266,17 +321,41 @@ hd_img_sizes = parse_size_from_xmls(xml_files)
 hd_img_dict_sizes = parse_size_dict_from_xmls(xml_files, hd_img_sizes)
 plot_dict_images_sizes(hd_img_dict_sizes, title="All images resolution")
 
+# ------------- TESTING DATASET CLASS --------------#
+img_width = 640
+img_height = 480
+image_dir = "./Selected_data"
+str2label = {"pad": -1, "bee": 0}
+label2str = {-1: "pad", 0: "bee"}
+transform = transforms.Compose([
+    transforms.ToTensor(),  # Convert PIL images to tensors
+    # ... other transformations ...
+])
 
-# transform = transforms.Compose([
-#     transforms.ToTensor(),  # Convert PIL images to tensors
-#     # ... other transformations ...
-# ])
-#
-# dataset = VOCDataset(root_dir="./ML-DATA", transform=transform)
-# data_loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=True)
-#
-#
-# # Iterate through batches
-# for images, boxes, labels in data_loader:
-#     # Your training or evaluation logic here
-#     print(images.shape, boxes.shape, labels.shape)
+dataset = VOCDataset(img_dir=image_dir, img_size=(img_height, img_width), str2label=str2label, label2str=label2str, transform=transform)
+od_dataloader = DataLoader(dataset, batch_size=2)
+for img_batch, gt_bboxes_batch, gt_classes_batch in od_dataloader:
+    img_data_all = img_batch
+    gt_bboxes_all = gt_bboxes_batch
+    gt_classes_all = gt_classes_batch
+    break
+
+img_data_all = img_data_all[:2]
+gt_bboxes_all = gt_bboxes_all[:2]
+gt_classes_all = gt_classes_all[:2]
+
+# get class names
+gt_class_1 = gt_classes_all[0].long()
+gt_class_1 = [label2str[idx.item()] for idx in gt_class_1]
+
+gt_class_2 = gt_classes_all[1].long()
+gt_class_2 = [label2str[idx.item()] for idx in gt_class_2]
+
+nrows, ncols = (1, 2)
+fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
+
+fig, axes = display_img(img_data_all, fig, axes)
+fig, _ = display_bbox(gt_bboxes_all[0], fig, axes[0], classes=gt_class_1)
+fig, _ = display_bbox(gt_bboxes_all[1], fig, axes[1], classes=gt_class_2)
+
+plt.show()
