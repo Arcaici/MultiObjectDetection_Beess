@@ -9,7 +9,6 @@ import xml.etree.ElementTree as ET  # For XML parsing
 import os
 import re
 from PIL import Image
-
 from utils import display_img, display_bbox
 
 

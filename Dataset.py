@@ -36,9 +36,11 @@ class VOCDataset(torch.utils.data.Dataset):
         img_data_all = []
         gt_idxs_all = []
 
-        gt_boxes_all, gt_classes_all = parse_annotation(self.img_dir, self.img_path_all, self.img_size)
+        #gt_boxes_all, gt_classes_all = parse_annotation(self.img_dir, self.img_path_all, self.img_size)
+        gt_boxes_all, gt_classes_all = parse_annotation(self.img_dir, self.img_path_all[:10], self.img_size)
 
-        for i, img_path in enumerate(self.img_path_all):
+        #for i, img_path in enumerate(self.img_path_all):
+        for i, img_path in enumerate(self.img_path_all[:10]):
 
             # read and resize image
             source_path = os.path.join(self.img_dir, img_path)
