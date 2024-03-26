@@ -1,6 +1,9 @@
+import os.path
+
 import torch
 import torchvision
 from matplotlib import pyplot as plt
+from sklearn.model_selection import train_test_split
 from torch import nn, optim
 from torchvision import transforms
 from torch.utils.data import DataLoader
@@ -32,6 +35,8 @@ def training_loop(model, learning_rate, train_dataloader, n_epochs):
         loss_list.append(total_loss)
 
     return loss_list
+# ------------- DEFINING DATASET CLASS --------------#
+
 
 # ------------- DEFINING DATASET CLASS --------------#
 
@@ -45,16 +50,11 @@ transform = transforms.Compose([
     # ... other transformations ...
 ])
 
-dataset = VOCDataset(img_dir=image_dir, img_size=(img_height, img_width), str2label=str2label, label2str=label2str, transform=transform)
-od_dataloader = DataLoader(dataset, batch_size=2)
-for img_batch, gt_bboxes_batch, gt_classes_batch in od_dataloader:
-    img_data_all = img_batch
-    gt_bboxes_all = gt_bboxes_batch
-    gt_classes_all = gt_classes_batch
+train = VOCDataset(img_dir=os.path.join(image_dir,"train"), img_size=(img_height, img_width), str2label=str2label, label2str=label2str, transform=transform)
+tr_dataloader = DataLoader(train, batch_size=2)
 
-img_data_all = img_data_all
-gt_bboxes_all = gt_bboxes_all
-gt_classes_all = gt_classes_all
+valid = VOCDataset(img_dir=os.path.join(image_dir,"valid"), img_size=(img_height, img_width), str2label=str2label, label2str=label2str, transform=transform)
+val_dataloader = DataLoader(valid, batch_size=2)
 
 # ------------- DEFINING MODEL CLASS --------------#
 
@@ -71,27 +71,24 @@ roi_size = (2, 2)
 
 detector = TwoStageDetector(img_size, out_size, out_c, n_classes, roi_size)
 detector.eval()
-total_loss = detector(img_batch, gt_bboxes_batch, gt_classes_batch)
-proposals_final, conf_scores_final, classes_final = detector.inference(img_batch)
 
+# ------------- TRAINING -----------#
 
 learning_rate = 1e-3
-n_epochs = 50
+n_epochs = 5
 
-loss_list = training_loop(detector, learning_rate, od_dataloader, n_epochs)
+loss_list = training_loop(detector, learning_rate, tr_dataloader, n_epochs)
 plt.plot(loss_list)
 torch.save(detector.state_dict(), "model.pt")
 
 detector.eval()
-proposals_final, conf_scores_final, classes_final = detector.inference(img_batch, conf_thresh=0.99, nms_thresh=0.05)
+proposals_final, conf_scores_final, classes_final = detector.inference(val_dataloader, conf_thresh=0.99, nms_thresh=0.05)
 # project proposals to the image space
 prop_proj_1 = project_bboxes(proposals_final[0], width_scale_factor, height_scale_factor, mode='a2p')
 
 # get classes
 classes_pred_1 = [label2str[cls] for cls in classes_final[0].tolist()]
 nrows, ncols = (1, 2)
-fig, axes = plt.subplots(nrows, ncols, figsize=(16, 8))
-
-fig, axes = display_img(img_batch, fig, axes)
-fig, _ = display_bbox(prop_proj_1, fig, axes[0], classes=classes_pred_1)
+fig, axes = plt.plot(figsize=(16, 8))
+fig, _ = display_bbox(prop_proj_1, fig, classes=classes_pred_1)
 plt.show()
